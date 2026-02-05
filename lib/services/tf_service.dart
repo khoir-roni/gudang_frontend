@@ -1,51 +1,54 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
 
 class TfService {
   Interpreter? _interpreter;
   List<String>? _labels;
-  String? _loadedModelName;
+  List<int>? _outputShape;
 
   static const int inputSize = 224; // MobileNet standard input size
 
   Future<void> loadModel() async {
-    final candidates = [
-      'assets/models/mobilenet.tflite',
-      'assets/models/mobilenet_v2.tflite',
-      'assets/models/MobileNet-v2_w8a8.tflite',
-      'mobilenet.tflite',
-    ];
     try {
-      // Try candidates until one loads
-      for (final name in candidates) {
-        try {
-          _interpreter = await Interpreter.fromAsset(name);
-          _loadedModelName = name;
-          debugPrint('TfService: loaded model $name');
-          break;
-        } catch (_) {
-          // continue
+      // 1. Load the model
+      _interpreter = await Interpreter.fromAsset(
+        'assets/models/mobilenet.tflite',
+      );
+
+      // 2. Get output shape from interpreter
+      if (_interpreter != null) {
+        final outputTensors = _interpreter!.getOutputTensors();
+        if (outputTensors.isNotEmpty) {
+          _outputShape = List<int>.from(outputTensors[0].shape);
+          print("Output shape: $_outputShape");
         }
       }
-      if (_interpreter == null) throw Exception('No tflite model found in assets');
 
-      // 2. Load the labels
+      // 3. Load the labels
       final labelData = await rootBundle.loadString('assets/models/labels.txt');
-      _labels = labelData.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      debugPrint('TfService: loaded ${_labels?.length ?? 0} labels');
+      _labels = labelData
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
+
+      print("Model loaded successfully with ${_labels?.length ?? 0} labels");
     } catch (e) {
-      debugPrint("Error loading model: $e");
+      print("Error loading model: $e");
     }
   }
-  /// Classify image bytes (useful when capturing from camera).
-  Future<List<dynamic>> classifyBytes(Uint8List imageData) async {
-    if (_interpreter == null) return [];
 
-    // Decode and resize
+  Future<List<dynamic>> classifyImage(String imagePath) async {
+    final bytes = File(imagePath).readAsBytesSync();
+    return classifyBytes(Uint8List.fromList(bytes));
+  }
+
+  Future<List<dynamic>> classifyBytes(Uint8List imageData) async {
+    if (_interpreter == null || _outputShape == null) return [];
+
+    // 1. Decode and Resize
     img.Image? originalImage = img.decodeImage(imageData);
     if (originalImage == null) return [];
 
@@ -55,79 +58,75 @@ class TfService {
       height: inputSize,
     );
 
-    // Build input tensor as nested Lists [1][H][W][3] with normalized floats
-    final input = List.generate(
+    // 2. Convert image to Matrix (Input Tensor)
+    // Teachable Machine expects RGB values 0-255 (not normalized)
+    var input = List.generate(
       1,
-      (_) => List.generate(
+      (i) => List.generate(
         inputSize,
-        (_) => List.generate(
-          inputSize,
-          (_) => List.filled(3, 0.0),
-        ),
+        (y) => List.generate(inputSize, (x) {
+          final pixelColor = resizedImage.getPixel(x, y);
+          // Extract R, G, B values from pixel
+          final r = pixelColor.r as int;
+          final g = pixelColor.g as int;
+          final b = pixelColor.b as int;
+          return [r, g, b];
+        }),
       ),
     );
 
-    // Use raw pixel data array (avoids analyzer issues with getPixel/getBytes)
-    final dynamic pixels = resizedImage.data;
-    if (pixels == null) return [];
-    for (var y = 0; y < inputSize; y++) {
-      for (var x = 0; x < inputSize; x++) {
-        final int pIdx = y * inputSize + x;
-        final int pixel = pixels[pIdx];
-        final int r = (pixel >> 16) & 0xFF;
-        final int g = (pixel >> 8) & 0xFF;
-        final int b = pixel & 0xFF;
-        input[0][y][x][0] = (r - 127.5) / 127.5;
-        input[0][y][x][1] = (g - 127.5) / 127.5;
-        input[0][y][x][2] = (b - 127.5) / 127.5;
-      }
+    // 3. Calculate output size dynamically from actual model output shape
+    int outputSize = 1;
+    for (int dim in _outputShape!) {
+      outputSize *= dim;
     }
 
-    final labelsLen = _labels?.length ?? 1001;
-    final output = List.generate(1, (_) => List.filled(labelsLen, 0.0));
+    // 4. Output Tensor container with dynamic size
+    var output = List.filled(outputSize, 0.0).reshape(_outputShape!);
 
-    _interpreter!.run(input, output);
+    // 5. Run Inference
+    try {
+      _interpreter!.run(input, output);
+    } catch (e) {
+      print("Inference error: $e");
+      return [];
+    }
 
-    final results = (output[0] as List).map((e) => (e as num).toDouble()).toList();
-    double maxScore = -double.infinity;
-    int maxIndex = -1;
-    for (int i = 0; i < results.length; i++) {
-      if (results[i] > maxScore) {
-        maxScore = results[i];
+    // 6. Parse Results
+    var outputList = output[0] as List;
+    var maxScore = 0.0;
+    var maxIndex = 0;
+
+    for (int i = 0; i < outputList.length; i++) {
+      final score = (outputList[i] as num).toDouble();
+      if (score > maxScore) {
+        maxScore = score;
         maxIndex = i;
       }
     }
 
-    // Normalize confidence: if model outputs >1 (e.g., 0-255 quantized), scale to 0..1
-    double normalized = 0.0;
-    if (maxScore.isFinite) {
-      if (maxScore > 1.01) {
-        normalized = (maxScore / 255.0).clamp(0.0, 1.0);
-      } else {
-        normalized = maxScore.clamp(0.0, 1.0);
-      }
-    }
+    // 7. Return the top result
+    if (_labels != null && maxIndex < _labels!.length) {
+      // Teachable Machine outputs normalized probabilities (0-1)
+      double confidence = (maxScore.clamp(0.0, 1.0) * 100);
 
-    if (maxIndex != -1 && _labels != null && maxIndex < _labels!.length) {
       return [
-        {"label": _labels![maxIndex], "confidence": normalized, "raw_score": maxScore},
+        {
+          "label": _labels![maxIndex],
+          "confidence": confidence,
+        },
       ];
     }
 
-    return [{"label": "Unknown", "confidence": 0.0, "raw_score": maxScore}];
+    return [
+      {"label": "Unknown", "confidence": 0.0},
+    ];
   }
-
-  Future<List<dynamic>> classifyImage(String imagePath) async {
-    final bytes = File(imagePath).readAsBytesSync();
-    return classifyBytes(Uint8List.fromList(bytes));
-  }
-
-  List<String>? getLabels() => _labels;
-  bool get isLoaded => _interpreter != null;
-
-  String? get loadedModelName => _loadedModelName;
 
   void close() {
     _interpreter?.close();
   }
+
+  bool get isLoaded => _interpreter != null;
+  List<String>? getLabels() => _labels;
 }
