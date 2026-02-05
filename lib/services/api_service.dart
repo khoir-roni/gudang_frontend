@@ -1,72 +1,70 @@
-
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../models/tool.dart';
+import '../constants/api_config.dart';
 
 class ApiService {
-  // Untuk development di emulator Android, gunakan 10.0.2.2
-  // Untuk development di perangkat fisik, ganti dengan alamat IP lokal komputer Anda (misal: 192.168.1.10)
-  static final String _baseUrl = Platform.isAndroid ? "http://10.0.2.2:5000" : "http://localhost:5000";
+  final String baseUrl = ApiConfig.baseUrl;
 
-  /// Mengambil semua barang, dengan opsi filter berdasarkan nama (query).
-  Future<List<Tool>> fetchTools({String? query}) async {
-    try {
-      final response = await http.get(Uri.parse("$_baseUrl/get_barang"));
-
-      if (response.statusCode == 200) {
-        List<Tool> tools = toolsFromJson(response.body);
-        
-        // Jika ada query, filter hasil di sisi klien.
-        if (query != null && query.isNotEmpty) {
-          tools = tools.where((tool) => tool.namaBarang.toLowerCase().contains(query.toLowerCase())).toList();
-        }
-        return tools;
-      } else {
-        throw Exception('Gagal memuat data dari API. Status code: ${response.statusCode}');
-      }
-    } on SocketException {
-        throw Exception('Tidak ada koneksi internet. Mohon periksa jaringan Anda.');
-    } catch (e) {
-        debugPrint(e.toString());
-        rethrow; // Lempar kembali error untuk ditangani oleh UI
+  Future<List<dynamic>> getTools() async {
+    final uri = Uri.parse('$baseUrl/get_barang');
+    final res = await http.get(uri);
+    if (res.statusCode == 200) {
+      return json.decode(res.body) as List<dynamic>;
     }
+    throw Exception('Failed to load tools');
   }
 
-  /// Menambah barang baru ke database.
-  Future<void> addTool(Map<String, dynamic> toolData) async {
-    final response = await http.post(
-      Uri.parse("$_baseUrl/add_barang"),
-      headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      body: jsonEncode(toolData),
-    );
-    if (response.statusCode != 200) {
-      throw Exception('Gagal menambah barang baru.');
-    }
+  Future<List<dynamic>> searchTools(String q) async {
+    final all = await getTools();
+    final lower = q.toLowerCase();
+    return all.where((item) {
+      final name = (item['nama_barang'] ?? '').toString().toLowerCase();
+      return name.contains(lower);
+    }).toList();
   }
 
-  /// Mengupdate jumlah barang (mengambil barang).
-  Future<void> updateTool(Map<String, dynamic> toolData) async {
-    final response = await http.post(
-      Uri.parse("$_baseUrl/update_barang"),
-      headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      body: jsonEncode(toolData),
-    );
-    if (response.statusCode != 200) {
-      throw Exception('Gagal mengupdate barang.');
+  Future<dynamic> addTool(Map<String, dynamic> data) async {
+    final uri = Uri.parse('$baseUrl/add_barang');
+    final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      return json.decode(res.body);
     }
+    throw Exception('Failed to add tool: ${res.body}');
   }
 
-  /// Menghapus barang dari database.
-  Future<void> deleteTool(Map<String, dynamic> toolData) async {
-    final response = await http.delete(
-      Uri.parse("$_baseUrl/delete_barang"),
-      headers: {'Content-Type': 'application/json; charset=UTF-8'},
-      body: jsonEncode(toolData),
-    );
-    if (response.statusCode != 200) {
-      throw Exception('Gagal menghapus barang.');
+  Future<dynamic> updateTool(Map<String, dynamic> data) async {
+    final uri = Uri.parse('$baseUrl/update_barang');
+    final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    if (res.statusCode == 200) {
+      return json.decode(res.body);
     }
+    throw Exception('Failed to update tool');
+  }
+
+  Future<dynamic> deleteTool(int id) async {
+    final uri = Uri.parse('$baseUrl/delete_barang');
+    final res = await http.delete(uri, headers: {'Content-Type': 'application/json'}, body: json.encode({'id': id}));
+    if (res.statusCode == 200) {
+      return json.decode(res.body);
+    }
+    throw Exception('Failed to delete tool');
+  }
+
+  Future<List<dynamic>> getHistory() async {
+    final uri = Uri.parse('$baseUrl/get_history');
+    final res = await http.get(uri);
+    if (res.statusCode == 200) {
+      return json.decode(res.body) as List<dynamic>;
+    }
+    throw Exception('Failed to load history');
+  }
+
+  Future<dynamic> deleteHistory(int id) async {
+    final uri = Uri.parse('$baseUrl/delete_history');
+    final res = await http.delete(uri, headers: {'Content-Type': 'application/json'}, body: json.encode({'id': id}));
+    if (res.statusCode == 200) {
+      return json.decode(res.body);
+    }
+    throw Exception('Failed to delete history');
   }
 }

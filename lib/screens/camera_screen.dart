@@ -67,7 +67,24 @@ class _CameraScreenState extends State<CameraScreen> {
       final labelsData = await rootBundle.loadString('assets/models/labels.txt');
       // PERBAIKAN: Menggunakan '\n' untuk memisahkan baris dengan benar
       _labels = labelsData.split('\n').map((label) => label.trim()).where((label) => label.isNotEmpty).toList();
-      _interpreter = await tflite.Interpreter.fromAsset('assets/models/mobilenet_v2.tflite');
+      // Try several candidate model filenames found in the repo
+      final candidates = [
+        'assets/models/mobilenet_v2.tflite',
+        'assets/models/mobilenet.tflite',
+        'assets/models/MobileNet-v2_w8a8.tflite',
+        'mobilenet_v2.tflite',
+        'mobilenet.tflite',
+      ];
+      for (final name in candidates) {
+        try {
+          _interpreter = await tflite.Interpreter.fromAsset(name);
+          debugPrint('Loaded tflite model: $name');
+          break;
+        } catch (_) {
+          // try next
+        }
+      }
+      if (_interpreter == null) throw Exception('No model found in assets');
     } catch (e) {
       debugPrint("Gagal memuat model atau label: $e");
     }
@@ -90,26 +107,29 @@ class _CameraScreenState extends State<CameraScreen> {
   Future<void> _classifyImage(Uint8List imageBytes) async {
     img.Image? originalImage = img.decodeImage(imageBytes);
     if (originalImage == null || _labels == null || !mounted) return;
-
     final modelInputSize = 224;
     img.Image resizedImage = img.copyResize(originalImage, width: modelInputSize, height: modelInputSize);
 
-    var inputTensor = Float32List(1 * modelInputSize * modelInputSize * 3);
-    var bufferIndex = 0;
-    for (var y = 0; y < resizedImage.height; y++) {
-      for (var x = 0; x < resizedImage.width; x++) {
-        var pixel = resizedImage.getPixel(x, y);
-        inputTensor[bufferIndex++] = (pixel.r - 127.5) / 127.5;
-        inputTensor[bufferIndex++] = (pixel.g - 127.5) / 127.5;
-        inputTensor[bufferIndex++] = (pixel.b - 127.5) / 127.5;
+    // Build 4D input: [1][H][W][3]
+    final input = List.generate(1, (_) => List.generate(modelInputSize, (_) => List.generate(modelInputSize, (_) => List.filled(3, 0.0))));
+    for (var y = 0; y < modelInputSize; y++) {
+      for (var x = 0; x < modelInputSize; x++) {
+        final pixel = resizedImage.getPixel(x, y);
+        final r = img.getRed(pixel);
+        final g = img.getGreen(pixel);
+        final b = img.getBlue(pixel);
+        input[0][y][x][0] = (r - 127.5) / 127.5;
+        input[0][y][x][1] = (g - 127.5) / 127.5;
+        input[0][y][x][2] = (b - 127.5) / 127.5;
       }
     }
-    final reshapedInput = inputTensor.reshape([1, modelInputSize, modelInputSize, 3]);
-    var output = List.filled(1 * _labels!.length, 0.0).reshape([1, _labels!.length]);
 
-    _interpreter!.run(reshapedInput, output);
+    // Output buffer [1][labels]
+    final output = List.generate(1, (_) => List.filled(_labels!.length, 0.0));
 
-    final results = output[0] as List<double>;
+    _interpreter!.run(input, output);
+
+    final results = (output[0] as List).map((e) => (e as num).toDouble()).toList();
     double maxConfidence = 0.0;
     int maxIndex = -1;
     for (int i = 0; i < results.length; i++) {

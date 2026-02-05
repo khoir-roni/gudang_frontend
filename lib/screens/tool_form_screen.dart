@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import '../models/tool.dart';
 import '../services/api_service.dart';
@@ -18,6 +17,7 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
+  String _selectedAction = 'taruh';
 
   // Controller untuk setiap field
   late TextEditingController _namaController;
@@ -35,6 +35,7 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
     _jumlahController = TextEditingController(text: widget.tool?.jumlah.toString() ?? '');
     _lemariController = TextEditingController(text: widget.tool?.lemari ?? '');
     _lokasiController = TextEditingController(text: widget.tool?.lokasi ?? '');
+    _selectedAction = widget.tool?.aksi ?? 'taruh';
   }
 
   @override
@@ -57,19 +58,19 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
         'jumlah': int.tryParse(_jumlahController.text) ?? 0,
         'lemari': _lemariController.text,
         'lokasi': _lokasiController.text,
-        'username': 'admin' // TODO: Ganti dengan username yang sedang login
+        'username': 'admin', // TODO: Ganti dengan username yang sedang login
+        'aksi': _selectedAction,
       };
 
       try {
         if (_isEditing) {
-          // Panggil API untuk update (misalnya, update jumlah)
-          // Anda mungkin perlu menyesuaikan endpoint ini sesuai kebutuhan
+          // Jika editing, sertakan id jika backend memerlukannya
+          toolData['id'] = widget.tool!.id;
           await _apiService.updateTool(toolData);
         } else {
-          // Panggil API untuk menambah barang baru
           await _apiService.addTool(toolData);
         }
-        
+
         // Kembali ke layar sebelumnya dengan hasil sukses
         if (mounted) Navigator.of(context).pop(true);
 
@@ -123,11 +124,38 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
                 decoration: const InputDecoration(labelText: 'Lokasi / Ruangan'),
                 validator: (value) => value!.isEmpty ? 'Lokasi tidak boleh kosong' : null,
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedAction,
+                decoration: const InputDecoration(labelText: 'Aksi'),
+                items: const [
+                  DropdownMenuItem(value: 'taruh', child: Text('Taruh')),
+                  DropdownMenuItem(value: 'ambil', child: Text('Ambil')),
+                ],
+                onChanged: (v) => setState(() => _selectedAction = v ?? 'taruh'),
+              ),
               const SizedBox(height: 24),
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
-                      onPressed: _submitForm,
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(_isEditing ? 'Konfirmasi Edit' : 'Konfirmasi Tambah'),
+                            content: Text(_isEditing
+                                ? 'Simpan perubahan untuk "${_namaController.text}"?'
+                                : 'Tambah barang "${_namaController.text}" dengan aksi "${_selectedAction}"?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Batal')),
+                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Ya')),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await _submitForm();
+                        }
+                      },
                       child: Text(_isEditing ? 'Simpan Perubahan' : 'Tambah Barang'),
                     ),
             ],
