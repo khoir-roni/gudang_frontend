@@ -44,6 +44,31 @@ class ApiService {
     throw Exception('Failed to update tool');
   }
 
+  Future<dynamic> editTool({
+    required int id,
+    required String namaBarang,
+    required int jumlah,
+    required String lemari,
+    required String lokasi,
+    required String username,
+  }) async {
+    final uri = Uri.parse('$baseUrl/edit_barang');
+    final data = {
+      'id': id,
+      'nama_barang': namaBarang,
+      'jumlah': jumlah,
+      'lemari': lemari,
+      'lokasi': lokasi,
+      'username': username,
+    };
+    final res = await http.post(uri,
+        headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    if (res.statusCode == 200) {
+      return json.decode(res.body);
+    }
+    throw Exception('Failed to edit tool: ${res.body}');
+  }
+
   Future<dynamic> takeToolStock(
       {required String namaBarang,
       required int jumlahDiambil,

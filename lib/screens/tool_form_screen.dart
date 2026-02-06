@@ -6,8 +6,10 @@ class ToolFormScreen extends StatefulWidget {
   // Jika `tool` tidak null, berarti ini adalah mode edit.
   // Jika null, ini adalah mode tambah.
   final Tool? tool;
+  final ApiService? apiService; // Untuk testing
 
-  const ToolFormScreen({Key? key, this.tool}) : super(key: key);
+  const ToolFormScreen({Key? key, this.tool, this.apiService})
+      : super(key: key);
 
   @override
   _ToolFormScreenState createState() => _ToolFormScreenState();
@@ -15,7 +17,7 @@ class ToolFormScreen extends StatefulWidget {
 
 class _ToolFormScreenState extends State<ToolFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ApiService _apiService = ApiService();
+  late ApiService _apiService;
   bool _isLoading = false;
   String _selectedAction = 'taruh';
 
@@ -25,17 +27,46 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
   late TextEditingController _lemariController;
   late TextEditingController _lokasiController;
 
+  // List untuk dropdown
+  List<String> _allLokasi = [];
+  List<String> _filteredLokasiList = [];
+  List<String> _allLemari = [];
+  List<String> _filteredLemariList = [];
+
   bool get _isEditing => widget.tool != null;
 
   @override
   void initState() {
     super.initState();
+    _apiService = widget.apiService ?? ApiService();
     // Inisialisasi controller dengan data yang ada jika dalam mode edit
-    _namaController = TextEditingController(text: widget.tool?.namaBarang ?? '');
-    _jumlahController = TextEditingController(text: widget.tool?.jumlah.toString() ?? '');
+    _namaController =
+        TextEditingController(text: widget.tool?.namaBarang ?? '');
+    _jumlahController =
+        TextEditingController(text: widget.tool?.jumlah.toString() ?? '');
     _lemariController = TextEditingController(text: widget.tool?.lemari ?? '');
     _lokasiController = TextEditingController(text: widget.tool?.lokasi ?? '');
     _selectedAction = widget.tool?.aksi ?? 'taruh';
+
+    _lokasiController.addListener(_onLokasiChanged);
+    _lemariController.addListener(_onLemariChanged);
+    _loadSuggestions();
+  }
+
+  Future<void> _loadSuggestions() async {
+    try {
+      final tools = await _apiService.getTools();
+      if (mounted) {
+        setState(() {
+          _allLokasi =
+              tools.map((e) => e['lokasi'].toString()).toSet().toList();
+          _allLemari =
+              tools.map((e) => e['lemari'].toString()).toSet().toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading suggestions: $e');
+    }
   }
 
   @override
@@ -47,6 +78,26 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
     super.dispose();
   }
 
+  void _onLokasiChanged() {
+    final query = _lokasiController.text.toLowerCase();
+    setState(() {
+      _filteredLokasiList = _allLokasi
+          .where((item) => item.toLowerCase().contains(query))
+          .take(5)
+          .toList();
+    });
+  }
+
+  void _onLemariChanged() {
+    final query = _lemariController.text.toLowerCase();
+    setState(() {
+      _filteredLemariList = _allLemari
+          .where((item) => item.toLowerCase().contains(query))
+          .take(5)
+          .toList();
+    });
+  }
+
   Future<void> _submitForm() async {
     // Validasi form
     if (_formKey.currentState!.validate()) {
@@ -54,10 +105,11 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
 
       try {
         if (_isEditing) {
-          // Mode edit: Ambil barang (kurangi stok)
-          await _apiService.takeToolStock(
+          // Mode edit: Update data barang (termasuk merge & history)
+          await _apiService.editTool(
+            id: widget.tool!.id,
             namaBarang: _namaController.text,
-            jumlahDiambil: int.tryParse(_jumlahController.text) ?? 0,
+            jumlah: int.tryParse(_jumlahController.text) ?? 0,
             lemari: _lemariController.text,
             lokasi: _lokasiController.text,
             username: 'admin', // TODO: Ganti dengan username yang sedang login
@@ -69,14 +121,14 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
             'jumlah': int.tryParse(_jumlahController.text) ?? 0,
             'lemari': _lemariController.text,
             'lokasi': _lokasiController.text,
-            'username': 'admin', // TODO: Ganti dengan username yang sedang login
+            'username':
+                'admin', // TODO: Ganti dengan username yang sedang login
           };
           await _apiService.addTool(toolData);
         }
 
         // Kembali ke layar sebelumnya dengan hasil sukses
         if (mounted) Navigator.of(context).pop(true);
-
       } catch (e) {
         // Tampilkan pesan error jika gagal
         if (mounted) {
@@ -90,11 +142,38 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
     }
   }
 
+  Widget _buildDropdownList(List<String> items,
+      TextEditingController controller, Function(List<String>) onClear) {
+    return Container(
+      margin: const EdgeInsets.only(top: 0, bottom: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(4),
+        color: Colors.white,
+      ),
+      constraints: const BoxConstraints(maxHeight: 150),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            dense: true,
+            title: Text(items[index]),
+            onTap: () {
+              controller.text = items[index];
+              onClear([]); // Tutup dropdown
+            },
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = _isEditing ? 'Ambil Barang' : 'Tambah Barang';
-    final buttonLabel = _isEditing ? 'Ambil' : 'Tambah';
-    
+    final title = _isEditing ? 'Edit Barang' : 'Tambah Barang';
+    final buttonLabel = _isEditing ? 'Simpan' : 'Tambah';
+
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -108,30 +187,42 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
               TextFormField(
                 controller: _namaController,
                 decoration: const InputDecoration(labelText: 'Nama Barang'),
-                validator: (value) => value!.isEmpty ? 'Nama barang tidak boleh kosong' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Nama barang tidak boleh kosong' : null,
               ),
               TextFormField(
                 controller: _jumlahController,
                 decoration: InputDecoration(
-                  labelText: _isEditing ? 'Jumlah yang diambil' : 'Jumlah',
+                  labelText: 'Jumlah',
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value!.isEmpty) return 'Jumlah tidak boleh kosong';
-                  if (int.tryParse(value) == null) return 'Masukkan angka yang valid';
+                  final n = int.tryParse(value);
+                  if (n == null) return 'Masukkan angka yang valid';
+                  if (n < 0) return 'Jumlah tidak boleh negatif';
                   return null;
                 },
               ),
               TextFormField(
                 controller: _lemariController,
                 decoration: const InputDecoration(labelText: 'Lemari / Rak'),
-                validator: (value) => value!.isEmpty ? 'Lemari tidak boleh kosong' : null,
+                validator: (value) =>
+                    value!.isEmpty ? 'Lemari tidak boleh kosong' : null,
               ),
+              if (_filteredLemariList.isNotEmpty)
+                _buildDropdownList(_filteredLemariList, _lemariController,
+                    (l) => setState(() => _filteredLemariList = l)),
               TextFormField(
                 controller: _lokasiController,
-                decoration: const InputDecoration(labelText: 'Lokasi / Ruangan'),
-                validator: (value) => value!.isEmpty ? 'Lokasi tidak boleh kosong' : null,
+                decoration:
+                    const InputDecoration(labelText: 'Lokasi / Ruangan'),
+                validator: (value) =>
+                    value!.isEmpty ? 'Lokasi tidak boleh kosong' : null,
               ),
+              if (_filteredLokasiList.isNotEmpty)
+                _buildDropdownList(_filteredLokasiList, _lokasiController,
+                    (l) => setState(() => _filteredLokasiList = l)),
               const SizedBox(height: 24),
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -140,15 +231,21 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
-                            title: Text(_isEditing ? 'Konfirmasi Ambil' : 'Konfirmasi Tambah'),
+                            title: Text(_isEditing
+                                ? 'Konfirmasi Ambil'
+                                : 'Konfirmasi Tambah'),
                             content: Text(
                               _isEditing
-                                  ? 'Ambil ${_jumlahController.text}x "${_namaController.text}"?'
+                                  ? 'Simpan perubahan untuk "${_namaController.text}"?'
                                   : 'Tambah "${_namaController.text}" sebanyak ${_jumlahController.text}?',
                             ),
                             actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Batal')),
-                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Ya')),
+                              TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: const Text('Batal')),
+                              ElevatedButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text('Ya')),
                             ],
                           ),
                         );

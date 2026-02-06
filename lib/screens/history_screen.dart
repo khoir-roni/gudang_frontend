@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({Key? key}) : super(key: key);
@@ -9,7 +10,8 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
+class _HistoryScreenState extends State<HistoryScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiService _api = ApiService();
   List<dynamic> _actionHistory = [];
@@ -48,7 +50,8 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       final data = await _api.getHistory();
       _actionHistory = data;
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -61,8 +64,12 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
         title: const Text('Hapus History'),
         content: const Text('Yakin ingin menghapus history ini?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Batal')),
-          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Hapus')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Batal')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Hapus')),
         ],
       ),
     );
@@ -71,7 +78,8 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       await _api.deleteHistory(id);
       await _loadActionHistory();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -88,7 +96,10 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
         title: const Text('History'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [Tab(text: 'Search History'), Tab(text: 'Action History')],
+          tabs: const [
+            Tab(text: 'Search History'),
+            Tab(text: 'Action History')
+          ],
         ),
       ),
       body: TabBarView(
@@ -110,7 +121,8 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Recent searches'),
-              TextButton(onPressed: _clearSearchHistory, child: const Text('Clear')),
+              TextButton(
+                  onPressed: _clearSearchHistory, child: const Text('Clear')),
             ],
           ),
           const SizedBox(height: 8),
@@ -121,7 +133,11 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                     itemCount: _searchHistory.length,
                     itemBuilder: (context, idx) {
                       final s = _searchHistory[idx];
-                      return ListTile(title: Text(s));
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 4, horizontal: 8),
+                        child: ListTile(title: Text(s)),
+                      );
                     },
                   ),
           ),
@@ -136,20 +152,49 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _actionHistory.isEmpty
-              ? ListView(children: const [Center(child: Padding(padding: EdgeInsets.all(24), child: Text('No action history')))])
+              ? ListView(children: const [
+                  Center(
+                      child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('No action history')))
+                ])
               : ListView.builder(
                   itemCount: _actionHistory.length,
                   itemBuilder: (context, idx) {
                     final h = _actionHistory[idx] as Map<String, dynamic>;
-                    return ListTile(
-                      title: Text(h['nama_barang'] ?? '—'),
-                      subtitle: Text('${h['aksi'] ?? '-'} • ${h['username'] ?? '-'} • ${h['tanggal'] ?? '-'}'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          final id = h['id'];
-                          if (id != null) _deleteActionHistory(id as int);
-                        },
+
+                    String formattedDate = '-';
+                    if (h['waktu'] != null) {
+                      try {
+                        final dt =
+                            DateTime.parse(h['waktu'].toString()).toLocal();
+                        formattedDate =
+                            DateFormat('dd MMM yyyy HH:mm').format(dt);
+                      } catch (_) {
+                        formattedDate = h['waktu'].toString();
+                      }
+                    }
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 4, horizontal: 8),
+                      child: ListTile(
+                        title: Text(h['nama_barang'] ?? '-'),
+                        subtitle: Text(
+                          'Jumlah: ${h['jumlah'] ?? '-'} | '
+                          'Lemari: ${h['lemari'] ?? '-'} | '
+                          'Lokasi: ${h['lokasi'] ?? '-'} | '
+                          'Aksi: ${h['aksi'] ?? '-'} | '
+                          'User: ${h['username'] ?? '-'} | '
+                          'Waktu: $formattedDate',
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            final id = h['id'];
+                            if (id != null) _deleteActionHistory(id as int);
+                          },
+                        ),
                       ),
                     );
                   },
