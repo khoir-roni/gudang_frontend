@@ -7,8 +7,9 @@ class ToolFormScreen extends StatefulWidget {
   // Jika null, ini adalah mode tambah.
   final Tool? tool;
   final ApiService? apiService; // Untuk testing
+  final String? initialName;
 
-  const ToolFormScreen({Key? key, this.tool, this.apiService})
+  const ToolFormScreen({Key? key, this.tool, this.apiService, this.initialName})
       : super(key: key);
 
   @override
@@ -32,6 +33,10 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
   List<String> _filteredLokasiList = [];
   List<String> _allLemari = [];
   List<String> _filteredLemariList = [];
+  List<String> _allNamaBarang = [];
+  List<String> _filteredNamaBarangList = [];
+  List<String> _allJumlah = [];
+  List<String> _filteredJumlahList = [];
 
   bool get _isEditing => widget.tool != null;
 
@@ -40,8 +45,8 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
     super.initState();
     _apiService = widget.apiService ?? ApiService();
     // Inisialisasi controller dengan data yang ada jika dalam mode edit
-    _namaController =
-        TextEditingController(text: widget.tool?.namaBarang ?? '');
+    _namaController = TextEditingController(
+        text: widget.tool?.namaBarang ?? widget.initialName ?? '');
     _jumlahController =
         TextEditingController(text: widget.tool?.jumlah.toString() ?? '');
     _lemariController = TextEditingController(text: widget.tool?.lemari ?? '');
@@ -50,6 +55,8 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
 
     _lokasiController.addListener(_onLokasiChanged);
     _lemariController.addListener(_onLemariChanged);
+    _namaController.addListener(_onNamaBarangChanged);
+    _jumlahController.addListener(_onJumlahChanged);
     _loadSuggestions();
   }
 
@@ -62,6 +69,10 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
               tools.map((e) => e['lokasi'].toString()).toSet().toList();
           _allLemari =
               tools.map((e) => e['lemari'].toString()).toSet().toList();
+          _allNamaBarang =
+              tools.map((e) => e['nama_barang'].toString()).toSet().toList();
+          _allJumlah =
+              tools.map((e) => e['jumlah'].toString()).toSet().toList();
         });
       }
     } catch (e) {
@@ -92,6 +103,26 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
     final query = _lemariController.text.toLowerCase();
     setState(() {
       _filteredLemariList = _allLemari
+          .where((item) => item.toLowerCase().contains(query))
+          .take(5)
+          .toList();
+    });
+  }
+
+  void _onNamaBarangChanged() {
+    final query = _namaController.text.toLowerCase();
+    setState(() {
+      _filteredNamaBarangList = _allNamaBarang
+          .where((item) => item.toLowerCase().contains(query))
+          .take(5)
+          .toList();
+    });
+  }
+
+  void _onJumlahChanged() {
+    final query = _jumlahController.text.toLowerCase();
+    setState(() {
+      _filteredJumlahList = _allJumlah
           .where((item) => item.toLowerCase().contains(query))
           .take(5)
           .toList();
@@ -190,6 +221,9 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
                 validator: (value) =>
                     value!.isEmpty ? 'Nama barang tidak boleh kosong' : null,
               ),
+              if (_filteredNamaBarangList.isNotEmpty)
+                _buildDropdownList(_filteredNamaBarangList, _namaController,
+                    (l) => setState(() => _filteredNamaBarangList = l)),
               TextFormField(
                 controller: _jumlahController,
                 decoration: InputDecoration(
@@ -204,6 +238,9 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
                   return null;
                 },
               ),
+              if (_filteredJumlahList.isNotEmpty)
+                _buildDropdownList(_filteredJumlahList, _jumlahController,
+                    (l) => setState(() => _filteredJumlahList = l)),
               TextFormField(
                 controller: _lemariController,
                 decoration: const InputDecoration(labelText: 'Lemari / Rak'),

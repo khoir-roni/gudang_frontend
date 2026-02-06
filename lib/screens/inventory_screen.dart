@@ -230,9 +230,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  Future<void> _openForm({Tool? tool}) async {
-    final res = await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => ToolFormScreen(tool: tool)));
+  Future<void> _openForm({Tool? tool, String? initialName}) async {
+    final res = await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ToolFormScreen(tool: tool, initialName: initialName)));
     if (res == true) {
       await _loadTools();
     }
@@ -245,7 +245,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
         title: const Text('Inventory'),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openForm(),
+        onPressed: () {
+          if (_filtered.isNotEmpty && _searchController.text.isNotEmpty) {
+            _openForm(tool: _filtered.first);
+          } else {
+            _openForm(initialName: _searchController.text);
+          }
+        },
         child: const Icon(Icons.add),
       ),
       body: Padding(

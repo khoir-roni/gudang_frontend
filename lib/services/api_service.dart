@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants/api_config.dart';
@@ -6,9 +7,17 @@ import '../models/tool.dart';
 class ApiService {
   final String baseUrl = ApiConfig.baseUrl;
 
+  // Header standar + Bypass Ngrok Warning
+  final Map<String, String> _headers = {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  };
+
   Future<List<dynamic>> getTools() async {
     final uri = Uri.parse('$baseUrl/get_barang');
-    final res = await http.get(uri);
+    final res = await http
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
     if (res.statusCode == 200) {
       return json.decode(res.body) as List<dynamic>;
     }
@@ -26,8 +35,9 @@ class ApiService {
 
   Future<dynamic> addTool(Map<String, dynamic> data) async {
     final uri = Uri.parse('$baseUrl/add_barang');
-    final res = await http.post(uri,
-        headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    final res = await http
+        .post(uri, headers: _headers, body: json.encode(data))
+        .timeout(const Duration(seconds: 15));
     if (res.statusCode == 200 || res.statusCode == 201) {
       return json.decode(res.body);
     }
@@ -36,8 +46,9 @@ class ApiService {
 
   Future<dynamic> updateTool(Map<String, dynamic> data) async {
     final uri = Uri.parse('$baseUrl/update_barang');
-    final res = await http.post(uri,
-        headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    final res = await http
+        .post(uri, headers: _headers, body: json.encode(data))
+        .timeout(const Duration(seconds: 15));
     if (res.statusCode == 200) {
       return json.decode(res.body);
     }
@@ -61,8 +72,9 @@ class ApiService {
       'lokasi': lokasi,
       'username': username,
     };
-    final res = await http.post(uri,
-        headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    final res = await http
+        .post(uri, headers: _headers, body: json.encode(data))
+        .timeout(const Duration(seconds: 15));
     if (res.statusCode == 200) {
       return json.decode(res.body);
     }
@@ -78,7 +90,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/update_barang');
     final data = {
       'nama_barang': namaBarang,
-      'jumlah_diambil': jumlahDiambil,
+      'jumlah': jumlahDiambil,
       'lemari': lemari,
       'lokasi': lokasi,
       'username': username,
@@ -88,8 +100,9 @@ class ApiService {
     print('URL: $uri');
     print('Data: ${json.encode(data)}');
 
-    final res = await http.post(uri,
-        headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    final res = await http
+        .post(uri, headers: _headers, body: json.encode(data))
+        .timeout(const Duration(seconds: 15));
 
     print('Response status: ${res.statusCode}');
     print('Response body: ${res.body}');
@@ -103,7 +116,7 @@ class ApiService {
   Future<dynamic> deleteTool(Tool tool) async {
     final uri = Uri.parse('$baseUrl/delete_barang');
     final res = await http.delete(uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: json.encode({
           'nama_barang': tool.namaBarang,
           'lemari': tool.lemari,
@@ -117,7 +130,9 @@ class ApiService {
 
   Future<List<dynamic>> getHistory() async {
     final uri = Uri.parse('$baseUrl/get_history');
-    final res = await http.get(uri);
+    final res = await http
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
     if (res.statusCode == 200) {
       return json.decode(res.body) as List<dynamic>;
     }
@@ -127,8 +142,7 @@ class ApiService {
   Future<dynamic> deleteHistory(int id) async {
     final uri = Uri.parse('$baseUrl/delete_history');
     final res = await http.delete(uri,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'id': id}));
+        headers: _headers, body: json.encode({'id': id}));
     if (res.statusCode == 200) {
       return json.decode(res.body);
     }
