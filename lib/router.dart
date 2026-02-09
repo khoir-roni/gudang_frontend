@@ -1,90 +1,119 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/history_screen.dart';
 import 'package:go_router/go_router.dart';
+
+import 'auth_provider.dart';
 import 'screens/camera_screen.dart';
 import 'screens/inventory_screen.dart';
-import 'screens/history_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/tool_form_screen.dart';
+import 'models/tool.dart';
 
-// Private navigators
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
+  refreshListenable: authProvider, // Dengarkan perubahan auth
+
+  // Logika Redirect Otomatis
+  redirect: (context, state) async {
+    final isAuthenticated = authProvider.isAuthenticated;
+
+    // Cek apakah user sedang berada di halaman login
+    final loggingIn = state.matchedLocation == '/login';
+
+    // Jika tidak ada token dan tidak sedang login -> Redirect ke Login
+    if (!isAuthenticated && !loggingIn) return '/login';
+
+    // Jika ada token dan sedang mencoba akses login -> Redirect ke Home (Kamera)
+    if (isAuthenticated && loggingIn) return '/';
+
+    // Tidak ada redirect
+    return null;
+  },
+
   routes: [
-    ShellRoute(
-      navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) {
-        return ScaffoldWithNavBar(child: child);
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
+
+    // Implementasi StatefulShellRoute untuk Bottom Navigation
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) {
+        return ScaffoldWithNavBar(navigationShell: navigationShell);
       },
-      routes: [
-        // Camera Screen
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const CameraScreen(),
+      branches: [
+        // Tab 1: Camera (Home)
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (context, state) => const CameraScreen(),
+            ),
+          ],
         ),
-        // Inventory Screen, now accepts an optional search query
-        GoRoute(
-          path: '/inventory',
-          builder: (context, state) {
-            // Extract the search query from the route parameters.
-            final query = state.uri.queryParameters['q'];
-            return InventoryScreen(searchQuery: query);
-          },
+        // Tab 2: Inventory
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/inventory',
+              builder: (context, state) {
+                final searchQuery = state.uri.queryParameters['q'];
+                return InventoryScreen(searchQuery: searchQuery);
+              },
+            ),
+          ],
         ),
-        // History Screen
-        GoRoute(
-          path: '/history',
-          builder: (context, state) => const HistoryScreen(),
+        // Tab 3: History
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/history',
+              builder: (context, state) => const HistoryScreen(),
+            ),
+          ],
         ),
       ],
     ),
   ],
 );
 
-/// A scaffold with a bottom navigation bar.
 class ScaffoldWithNavBar extends StatelessWidget {
-  final Widget child;
-  const ScaffoldWithNavBar({required this.child, super.key});
+  final StatefulNavigationShell navigationShell;
+  const ScaffoldWithNavBar({required this.navigationShell, Key? key})
+      : super(key: key);
+
+  void _goBranch(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      // Opsi A: Tombol Back kembali ke Home (Index 0) jika di tab lain
+      body: PopScope(
+        canPop: navigationShell.currentIndex == 0,
+        onPopInvoked: (didPop) {
+          if (didPop) return;
+          _goBranch(0);
+        },
+        child: navigationShell,
+      ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _calculateSelectedIndex(context),
-        onTap: (int idx) => _onItemTapped(idx, context),
+        currentIndex: navigationShell.currentIndex,
+        onTap: _goBranch,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: 'Scan'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.inventory),
-            label: 'Inventory',
-          ),
+              icon: Icon(Icons.inventory), label: 'Inventory'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
         ],
       ),
     );
-  }
-
-  static int _calculateSelectedIndex(BuildContext context) {
-    final String location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith('/inventory')) return 1;
-    if (location.startsWith('/history')) return 2;
-    return 0; // Default to Camera/Scan screen
-  }
-
-  void _onItemTapped(int index, BuildContext context) {
-    switch (index) {
-      case 0:
-        context.go('/');
-        break;
-      case 1:
-        // When navigating to inventory from the nav bar, there is no search query.
-        context.go('/inventory');
-        break;
-      case 2:
-        context.go('/history');
-        break;
-    }
   }
 }

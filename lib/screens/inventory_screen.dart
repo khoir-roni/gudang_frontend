@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/tool.dart';
 import '../services/api_service.dart';
 import 'tool_form_screen.dart';
+import '../auth_provider.dart';
 
 class InventoryScreen extends StatefulWidget {
   // Accept an optional search query.
@@ -37,6 +38,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
     _loadTools();
     _loadSearchHistory();
+  }
+
+  @override
+  void didUpdateWidget(InventoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Handle pencarian baru saat tab berpindah atau parameter berubah
+    if (widget.searchQuery != null &&
+        widget.searchQuery != oldWidget.searchQuery) {
+      _searchController.text = widget.searchQuery!;
+      _performSearch(widget.searchQuery!);
+    }
   }
 
   @override
@@ -238,11 +250,42 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Logout'),
+        content: const Text('Apakah Anda yakin ingin keluar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      await authProvider.logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inventory'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _handleLogout,
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {

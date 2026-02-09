@@ -148,4 +148,20 @@ class ApiService {
     }
     throw Exception('Failed to delete history');
   }
+
+  Future<String> login(String username, String password) async {
+    final uri = Uri.parse('$baseUrl/login');
+    final res = await http
+        .post(uri,
+            headers: _headers,
+            body: json.encode({'username': username, 'password': password}))
+        .timeout(const Duration(seconds: 15));
+
+    final data = json.decode(res.body);
+    if (res.statusCode == 200) {
+      return data['token'].toString();
+    } else {
+      throw Exception(data['message'] ?? 'Login gagal');
+    }
+  }
 }
