@@ -242,9 +242,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  Future<void> _openForm({Tool? tool, String? initialName}) async {
+  Future<void> _openForm(
+      {Tool? tool,
+      String? initialName,
+      String? initialLemari,
+      String? initialLokasi,
+      int? initialJumlah}) async {
     final res = await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ToolFormScreen(tool: tool, initialName: initialName)));
+        builder: (_) => ToolFormScreen(
+            tool: tool,
+            initialName: initialName,
+            initialLemari: initialLemari,
+            initialLokasi: initialLokasi,
+            initialJumlah: initialJumlah)));
     if (res == true) {
       await _loadTools();
     }
@@ -289,10 +299,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          if (_filtered.isNotEmpty && _searchController.text.isNotEmpty) {
-            _openForm(tool: _filtered.first);
+          final query = _searchController.text.trim();
+          // Kondisi A: Barang Ditemukan -> Smart Add (Pre-fill details, Mode Tambah)
+          if (query.isNotEmpty && _filtered.isNotEmpty) {
+            final item = _filtered.first;
+            _openForm(
+                initialJumlah: item.jumlah,
+                initialName: item.namaBarang,
+                initialLemari: item.lemari,
+                initialLokasi: item.lokasi);
           } else {
-            _openForm(initialName: _searchController.text);
+            // Kondisi B: Barang Baru -> Pre-fill nama saja
+            _openForm(initialName: query);
           }
         },
         child: const Icon(Icons.add),
@@ -355,6 +373,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                 trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.add_circle_outline),
+                                        tooltip: 'Tambah Stok',
+                                        onPressed: () => _openForm(
+                                            initialJumlah: t.jumlah,
+                                            initialName: t.namaBarang,
+                                            initialLemari: t.lemari,
+                                            initialLokasi: t.lokasi),
+                                      ),
                                       IconButton(
                                         icon: const Icon(
                                             Icons.remove_circle_outline),

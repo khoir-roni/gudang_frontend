@@ -8,8 +8,18 @@ class ToolFormScreen extends StatefulWidget {
   final Tool? tool;
   final ApiService? apiService; // Untuk testing
   final String? initialName;
+  final String? initialLemari;
+  final String? initialLokasi;
+  final int? initialJumlah;
 
-  const ToolFormScreen({Key? key, this.tool, this.apiService, this.initialName})
+  const ToolFormScreen(
+      {Key? key,
+      this.tool,
+      this.apiService,
+      this.initialName,
+      this.initialLemari,
+      this.initialLokasi,
+      this.initialJumlah})
       : super(key: key);
 
   @override
@@ -47,10 +57,14 @@ class _ToolFormScreenState extends State<ToolFormScreen> {
     // Inisialisasi controller dengan data yang ada jika dalam mode edit
     _namaController = TextEditingController(
         text: widget.tool?.namaBarang ?? widget.initialName ?? '');
-    _jumlahController =
-        TextEditingController(text: widget.tool?.jumlah.toString() ?? '');
-    _lemariController = TextEditingController(text: widget.tool?.lemari ?? '');
-    _lokasiController = TextEditingController(text: widget.tool?.lokasi ?? '');
+    _jumlahController = TextEditingController(
+        text: widget.tool?.jumlah.toString() ??
+            widget.initialJumlah?.toString() ??
+            '');
+    _lemariController = TextEditingController(
+        text: widget.tool?.lemari ?? widget.initialLemari ?? '');
+    _lokasiController = TextEditingController(
+        text: widget.tool?.lokasi ?? widget.initialLokasi ?? '');
     _selectedAction = widget.tool?.aksi ?? 'taruh';
 
     _lokasiController.addListener(_onLokasiChanged);
