@@ -5,7 +5,7 @@ import '../constants/api_config.dart';
 import '../models/tool.dart';
 
 class ApiService {
-  final String baseUrl = ApiConfig.baseUrl;
+  String get baseUrl => ApiConfig.baseUrl;
 
   // Header standar + Bypass Ngrok Warning
   final Map<String, String> _headers = {

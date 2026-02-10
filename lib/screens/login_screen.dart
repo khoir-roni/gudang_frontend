@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../auth_provider.dart';
+import '../constants/api_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -17,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _useNgrok = ApiConfig.useNgrok;
 
   @override
   void dispose() {
@@ -178,6 +180,32 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Toggle Mode (Local vs Internet)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Mode DEBUG',
+                        style: TextStyle(
+                            color: _useNgrok ? Colors.grey : Colors.indigo),
+                      ),
+                      Switch(
+                        value: _useNgrok,
+                        onChanged: (value) {
+                          setState(() {
+                            _useNgrok = value;
+                            ApiConfig.useNgrok = value;
+                          });
+                        },
+                      ),
+                      Text(
+                        'Mode Internet',
+                        style: TextStyle(
+                            color: _useNgrok ? Colors.indigo : Colors.grey),
+                      ),
+                    ],
                   ),
                 ],
               ),
