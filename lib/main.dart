@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/router.dart'; // Import the router
+import 'router.dart'; // Import the router
 import 'auth_provider.dart';
 
 void main() async {
@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
     // Use MaterialApp.router to integrate GoRouter.
     return MaterialApp.router(
       routerConfig: router, // Pass the router configuration
-      title: 'Warehouse Manager',
+      title: 'Stats App',
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         visualDensity: VisualDensity.adaptivePlatformDensity,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/api_service.dart';
 import '../auth_provider.dart';
 import '../constants/api_config.dart';
 
@@ -14,7 +13,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _apiService = ApiService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;

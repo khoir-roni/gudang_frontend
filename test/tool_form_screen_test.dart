@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/models/tool.dart';
-import 'package:frontend/screens/tool_form_screen.dart';
-import 'package:frontend/services/api_service.dart';
+import '../lib/models/tool.dart';
+import '../lib/screens/tool_form_screen.dart';
+import '../lib/services/api_service.dart';
 
 // Mock ApiService Manual
 class MockApiService extends ApiService {
